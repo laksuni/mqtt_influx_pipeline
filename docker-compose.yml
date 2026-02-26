@@ -1,0 +1,48 @@
+services:
+  iot-collector:
+    build:
+      context: .
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    container_name: iot_collector
+    restart: unless-stopped
+    command: python -m src.main
+    volumes:
+      - ./data:/app/data:z
+      - ./.env:/app/.env:ro
+    environment:
+      - TZ=Europe/Helsinki
+    secrets:
+      - influx_token
+      - mqtt_username
+      - mqtt_password
+
+  iot-analytics:
+    build:
+      context: .
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    container_name: iot_analytics
+    restart: unless-stopped
+    command: python -m src.scheduler
+    volumes:
+      - ./data:/app/data:z
+      - ./.env:/app/.env:ro
+    environment:
+      - TZ=Europe/Helsinki
+    depends_on:
+      - iot-collector
+    secrets:
+      - influx_token
+      - mqtt_username
+      - mqtt_password
+
+secrets:
+  influx_token:
+    file: ./secrets/influx_token.txt
+  mqtt_username:
+    file: ./secrets/mqtt_username.txt
+  mqtt_password:
+    file: ./secrets/mqtt_password.txt
