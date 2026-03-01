@@ -16,3 +16,4 @@ __pycache__/
 
 # OS files
 .DS_Store
+dev_archive/

@@ -55,15 +55,25 @@ class Config:
     # SENSOR CAPACITY (for cleaning unrealistic values)
     # Adjust these based on actual room sizes and sensor types
     # -------------------------------------------------------------------------
+    # List of all active sensor IDs (used by cleaner and forecaster)
+   
+    SENSOR_IDS = ["aiot", "robo", "simulated"]
     SENSOR_CAPACITY = {
         "aiot": 60,        # adjust based on actual room size
         "robo": 60,
         "simulated": 150   # simulated may have arbitrary values
-}
+    }
+
+
     # Environmental sensor limits (global, but could become sensor‑specific later)
     TEMP_RANGE = (-30.0, 60.0)      # °C
     HUM_RANGE = (0.0, 100.0)        # %
     CO2_RANGE = (350.0, 5000.0)     # ppm
+
+    # -------------------------------------------------------------------------
+    # OPTIONAL CSV BACKUP
+    # -------------------------------------------------------------------------
+    WRITE_CSV_BACKUP = True   # Set to False to disable CSV logging
 
     @classmethod
     def ensure_dirs(cls):

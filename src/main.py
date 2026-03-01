@@ -5,7 +5,7 @@ Entry point for the real-time data collection container.
 Responsibilities:
 1. Connect to MQTT Broker.
 2. Receive sensor data payloads.
-3. Log raw data to CSV (Local Backup/History).
+3. Log raw data to CSV (Local Backup/History) – can be disabled via config.
 4. Validate and write cleaned data to InfluxDB (Real-time Dashboarding).
 """
 
@@ -86,7 +86,7 @@ class IoTCollector:
     def _on_message(self, client, userdata, msg):
         """
         Core logic pipeline:
-        RAW MSG -> JSON PARSE -> CSV LOG -> VALIDATION -> INFLUXDB
+        RAW MSG -> JSON PARSE -> TIMESTAMP -> (optional CSV LOG) -> INFLUXDB
         """
         payload_str = msg.payload.decode('utf-8')
         
@@ -94,10 +94,14 @@ class IoTCollector:
             # 1. Parse JSON
             data = json.loads(payload_str)
             
-            # 2. Log Raw Data to CSV and capture timestamp (Persist everything, even invalid data)
-            ts = self._log_to_csv(msg.topic, payload_str, data)
+            # 2. Capture precise UTC time (used for both CSV and InfluxDB)
+            ts = datetime.now(timezone.utc)
             
-            # 3. Write to InfluxDB (Only valid data)
+            # 3. Log Raw Data to CSV if enabled (configurable)
+            if Config.WRITE_CSV_BACKUP:
+                self._log_to_csv(msg.topic, payload_str, data, ts)
+            
+            # 4. Write to InfluxDB (only valid data)
             self._write_to_influx(data, ts)
 
         except json.JSONDecodeError:
@@ -108,8 +112,8 @@ class IoTCollector:
     # -------------------------------------------------------------------------
     # DATA PROCESSING
     # -------------------------------------------------------------------------
-    def _log_to_csv(self, topic: str, payload_str: str, data: Dict[str, Any]):
-        """Appends raw message to a device-specific CSV file."""
+    def _log_to_csv(self, topic: str, payload_str: str, data: Dict[str, Any], timestamp: datetime):
+        """Appends raw message to a device-specific CSV file using the provided timestamp."""
         try:
             # Determine filename based on sensor ID
             sensor_id = data.get("id", "unknown")
@@ -124,10 +128,8 @@ class IoTCollector:
             # Check if we need a header
             file_exists = file_path.exists()
             
-            # Capture precise UTC time
-            now_utc = datetime.now(timezone.utc)
-            # Format as ISO 8601 (e.g., 2026-02-16T14:50:00.123456+00:00)
-            timestamp_iso = now_utc.isoformat()
+            # Format timestamp as ISO 8601 (e.g., 2026-02-16T14:50:00.123456+00:00)
+            timestamp_iso = timestamp.isoformat()
 
             # Clean payload for CSV (remove newlines)
             clean_payload = payload_str.replace('\n', ' ').replace('\r', '')
@@ -136,13 +138,10 @@ class IoTCollector:
                 if not file_exists:
                     f.write("timestamp,topic,payload\n")
                 f.write(f"{timestamp_iso},{topic},{clean_payload}\n")
-            return now_utc  # Return the timestamp for use in InfluxDB point
        
         except Exception as e:
             logger.error(f"CSV Logging Failed: {e}")
-            return datetime.now(timezone.utc)  # Return current time even if logging fails
 
-    
     def _write_to_influx(self, data: Dict[str, Any], timestamp: datetime):
         """Writes data points to InfluxDB, always writing, with a validity tag."""
         try:
@@ -171,9 +170,7 @@ class IoTCollector:
                         point.field("people", int(float(p_val)))
                         fields_added = True
                 else:
-                    # Still try to extract fields even if validation fails? 
-                    # For raw, we might want to store whatever is there, but validation already checks existence.
-                    # Simpler: if validation fails, we don't add any fields (just the tag and timestamp)
+                    # If validation fails, we don't add any fields (just the tag and timestamp)
                     pass
 
             # Logic for Physical Sensors
@@ -202,6 +199,7 @@ class IoTCollector:
 
         except Exception as e:
             logger.error(f"Influx Write Failed: {e}")
+
     # -------------------------------------------------------------------------
     # LIFECYCLE MANAGEMENT
     # -------------------------------------------------------------------------
@@ -246,3 +244,4 @@ if __name__ == "__main__":
 
     # 3. Start
     service.run()
+
