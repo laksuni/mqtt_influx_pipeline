@@ -1,10 +1,11 @@
-# Secrets
-.env
-secrets/
-influx_token.txt
-vend/
+# Secrets – ignore everything inside secrets/ except readme.md
+secrets/*
+!secrets/readme.md
 
-# Data files
+# .env file (local environment variables)
+.env
+
+# Data files (CSV exports)
 data/raw/*
 data/processed/*
 !data/raw/.gitkeep
@@ -16,4 +17,10 @@ __pycache__/
 
 # OS files
 .DS_Store
+
+# Development archive (obsolete scripts, experiments)
 dev_archive/
+
+# Vendor directories (if any)
+vend/
+

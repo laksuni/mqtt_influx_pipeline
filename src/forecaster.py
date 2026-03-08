@@ -8,8 +8,8 @@ Pipeline:
 4. LOAD: Writes predictions to InfluxDB (people_count_forecast).
 
 Usage:
-  python3 -m src.forecaster            # Run production forecast
-  python3 -m src.forecaster --backtest # Run backtest accuracy check
+  docker exec -it iot_analytics python -m src.forecaster            # Run production forecast
+  docker exec -it iot_analytics python -m src.forecaster --backtest # Run backtest accuracy check
 """
 
 import logging

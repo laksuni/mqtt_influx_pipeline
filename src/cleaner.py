@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ETL Cleaning Module – Advanced Version
+ETL Cleaning Module 
 =======================================
 Pipeline:
 1. QUERY: Fetches 'sensor_data_raw' from InfluxDB.
@@ -12,8 +12,8 @@ Pipeline:
 5. FINAL SMOOTHING: Light EWMA for simulated sensor only.
 6. LOAD: Writes to InfluxDB measurement 'sensor_data_clean'.
 
-Manual usage:
-  python3 -m src.cleaner --days 35
+Manual usage (run inside Docker container):
+  docker exec -it iot_analytics python -m src.cleaner --days 35
 """
 
 import logging

@@ -8,9 +8,9 @@ Tests forecast accuracy for a specific week by training on all data before a cut
 and writes the results to InfluxDB (measurement: forecast_accuracy).
 Optionally stores the detailed forecast points.
 
-Run from project root:
-  python3 scripts/test_forecast_accuracy.py --cutoff 2026-02-20 --days 7
-  python3 scripts/test_forecast_accuracy.py --cutoff 2026-02-20 --days 7 --store-details
+Run inside Docker container from project root:
+  docker exec -it iot_analytics python /app/scripts/test_forecast_accuracy.py --cutoff 2026-02-20 --days 7
+  docker exec -it iot_analytics python /app/scripts/test_forecast_accuracy.py --cutoff 2026-02-20 --days 7 --store-details
 """
 
 import argparse
@@ -19,12 +19,16 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
 
-# Import your project modules
+# Add project root to path to import src modules
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from src.config import Config
 from src.forecaster import get_influx_token, fetch_hourly_history, generate_forecast
+
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 # -----------------------------------------------------------------------------
 # LOGGING SETUP
@@ -215,4 +219,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_accuracy_test(args.cutoff, args.days, store_details=args.store_details)
-

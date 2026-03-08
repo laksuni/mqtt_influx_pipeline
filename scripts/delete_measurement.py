@@ -5,16 +5,16 @@ Now located in scripts/ folder.
 
 Usage examples (run from project root):
   # Delete entire measurement
-  python3 scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast
+  docker exec -it iot_analytics python /app/scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast
 
   # Delete all points with a specific tag key (e.g., cutoff) – regardless of value
-  python3 scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast --tag-key cutoff
+  docker exec -it iot_analytics python /app/scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast --tag-key cutoff
 
   # Delete points with a specific tag key and value
-  python3 scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast --tag-key cutoff --tag-value "2026-02-20T00:00:00"
+  docker exec -it iot_analytics python /app/scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast --tag-key cutoff --tag-value "2026-02-20T00:00:00"
 
   # Delete within a time range
-  python3 scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast --start 2026-02-01 --end 2026-02-10
+  docker exec -it iot_analytics python /app/scripts/delete_measurement.py --bucket your-bucket --measurement people_count_forecast --start 2026-02-01 --end 2026-02-10
 """
 
 import argparse
@@ -24,33 +24,42 @@ from pathlib import Path
 from influxdb_client import InfluxDBClient, DeleteService
 from influxdb_client.rest import ApiException
 
+# Add project root to path to import src modules
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.config import Config
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger("delete_measurement")
 
 def get_influx_token():
-    """Resolves InfluxDB token from environment variable or local secrets file."""
-    import os
-    from dotenv import load_dotenv
+    """Resolves InfluxDB token using Config (preferred) or falls back to secrets file."""
+    # 1. Use Config (which already handles Docker secrets and env vars)
+    if hasattr(Config, 'INFLUX_TOKEN') and Config.INFLUX_TOKEN:
+        return Config.INFLUX_TOKEN
 
-    # Load .env from project root (one level up)
-    env_path = Path(__file__).parent.parent / ".env"
-    load_dotenv(dotenv_path=env_path)
+    # 2. Fallback: read from /run/secrets (Docker swarm secrets)
+    try:
+        with open('/run/secrets/influx_token', 'r') as f:
+            return f.read().strip()
+    except Exception:
+        pass
 
-    token = os.getenv("INFLUX_TOKEN")
-    if token and token.strip():
-        return token
-
-    # Fallback to secrets file in project root
-    secret_path = Path(__file__).parent.parent / "secrets" / "influx_token.txt"
-    if secret_path.exists():
-        return secret_path.read_text(encoding="utf-8").strip()
+    # 3. Fallback: read from secrets file in project root (for local testing)
+    try:
+        secret_path = Path(__file__).parent.parent / "secrets" / "influx_token.txt"
+        if secret_path.exists():
+            return secret_path.read_text(encoding="utf-8").strip()
+    except Exception as e:
+        logger.warning(f"Could not read local secret file: {e}")
 
     return None
 
 def delete_data(bucket: str, measurement: str = None,
                 start: datetime = None, end: datetime = None,
                 tag_key: str = None, tag_value: str = None,
-                url: str = "http://localhost:8086", org: str = None):
+                url: str = None, org: str = None):
     """
     Delete data matching the given criteria.
     If measurement is None, deletes from entire bucket (use with caution!).
@@ -62,9 +71,14 @@ def delete_data(bucket: str, measurement: str = None,
         logger.error("No InfluxDB token found.")
         return False
 
+    # Use Config defaults if not overridden
+    if url is None:
+        url = Config.INFLUX_URL
     if org is None:
-        import os
-        org = os.getenv("INFLUX_ORG", "automaatio")
+        org = Config.INFLUX_ORG
+        if org is None:
+            import os
+            org = os.getenv("INFLUX_ORG", "automaatio")
 
     client = InfluxDBClient(url=url, token=token, org=org, timeout=30_000)
 
@@ -131,8 +145,8 @@ def delete_data(bucket: str, measurement: str = None,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Delete data from InfluxDB with optional tag filtering.")
-    parser.add_argument("--url", default="http://localhost:8086", help="InfluxDB URL")
-    parser.add_argument("--org", help="InfluxDB organization (default from env or 'automaatio')")
+    parser.add_argument("--url", help="InfluxDB URL (default: from Config)")
+    parser.add_argument("--org", help="InfluxDB organization (default: from Config)")
     parser.add_argument("--bucket", required=True, help="Bucket name")
     parser.add_argument("--measurement", help="Measurement name to delete (if omitted, entire bucket)")
     parser.add_argument("--tag-key", help="Tag key to filter by")
