@@ -272,10 +272,6 @@ This project is designed to be easily customised:
     └── utils.py
 ```
 
-## License
-
-No license
-
 ## Context
 
 Developed as part of an IoT data analysis course.
